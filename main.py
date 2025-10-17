@@ -5,7 +5,8 @@ import torch
 import torchaudio
 import io
 import logging
-import soundfile as sf
+import numpy as np
+from pydub import AudioSegment
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -50,21 +51,26 @@ async def extract_speech(audio: UploadFile = File(...)):
         audio_data = await audio.read()
         logger.info(f"Original file size: {len(audio_data)} bytes ({len(audio_data)/1024/1024:.2f} MB)")
         
-        # Use soundfile to load WebM/Opus audio
-        audio_bytes = io.BytesIO(audio_data)
-        waveform_np, sample_rate = sf.read(audio_bytes, dtype='float32')
+        # Use pydub with ffmpeg backend to load WebM/Opus
+        logger.info("Loading audio with pydub (ffmpeg backend)...")
+        audio_segment = AudioSegment.from_file(io.BytesIO(audio_data))
         
-        # Convert numpy array to torch tensor
-        if waveform_np.ndim == 1:
-            # Mono audio
-            waveform = torch.from_numpy(waveform_np).unsqueeze(0)
+        # Convert to numpy array
+        samples = np.array(audio_segment.get_array_of_samples()).astype(np.float32)
+        samples = samples / (2**15)  # Normalize to [-1, 1]
+        sample_rate = audio_segment.frame_rate
+        
+        # Convert to torch tensor
+        if audio_segment.channels == 1:
+            waveform = torch.from_numpy(samples).unsqueeze(0)
         else:
-            # Stereo/multi-channel - transpose to [channels, samples]
-            waveform = torch.from_numpy(waveform_np.T)
+            # Reshape for stereo
+            samples = samples.reshape((-1, audio_segment.channels))
+            waveform = torch.from_numpy(samples.T)
         
-        logger.info(f"Loaded audio with soundfile backend")
+        logger.info(f"Loaded audio: {sample_rate}Hz, {audio_segment.channels} channel(s)")
         original_duration = waveform.shape[1] / sample_rate
-        logger.info(f"Sample rate: {sample_rate}Hz, Duration: {original_duration:.2f}s ({original_duration/60:.2f} min)")
+        logger.info(f"Duration: {original_duration:.2f}s ({original_duration/60:.2f} min)")
         
         # Resample to 16kHz (Silero VAD requirement)
         if sample_rate != 16000:
