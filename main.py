@@ -50,23 +50,19 @@ async def extract_speech(audio: UploadFile = File(...)):
         audio_data = await audio.read()
         logger.info(f"Original file size: {len(audio_data)} bytes ({len(audio_data)/1024/1024:.2f} MB)")
         
-        # Load audio with torchaudio
-       import soundfile as sf
-
-# Use soundfile to load WebM/Opus audio
-audio_bytes = io.BytesIO(audio_data)
-waveform_np, sample_rate = sf.read(audio_bytes, dtype='float32')
-
-# Convert numpy array to torch tensor
-import torch
-if waveform_np.ndim == 1:
-    # Mono audio
-    waveform = torch.from_numpy(waveform_np).unsqueeze(0)
-else:
-    # Stereo/multi-channel - transpose to [channels, samples]
-    waveform = torch.from_numpy(waveform_np.T)
-
-logger.info(f"Loaded audio with soundfile backend")
+        # Use soundfile to load WebM/Opus audio
+        audio_bytes = io.BytesIO(audio_data)
+        waveform_np, sample_rate = sf.read(audio_bytes, dtype='float32')
+        
+        # Convert numpy array to torch tensor
+        if waveform_np.ndim == 1:
+            # Mono audio
+            waveform = torch.from_numpy(waveform_np).unsqueeze(0)
+        else:
+            # Stereo/multi-channel - transpose to [channels, samples]
+            waveform = torch.from_numpy(waveform_np.T)
+        
+        logger.info(f"Loaded audio with soundfile backend")
         original_duration = waveform.shape[1] / sample_rate
         logger.info(f"Sample rate: {sample_rate}Hz, Duration: {original_duration:.2f}s ({original_duration/60:.2f} min)")
         
@@ -88,11 +84,11 @@ logger.info(f"Loaded audio with soundfile backend")
             waveform[0],
             model,
             sampling_rate=sample_rate,
-            threshold=0.4,              # Lower = more sensitive (good for quiet speech)
-            min_speech_duration_ms=250,  # Catch short utterances
-            min_silence_duration_ms=700, # Allow for drilling pauses
+            threshold=0.4,
+            min_speech_duration_ms=250,
+            min_silence_duration_ms=700,
             window_size_samples=512,
-            speech_pad_ms=50            # Padding to not cut words
+            speech_pad_ms=50
         )
         
         logger.info(f"Detected {len(speech_timestamps)} speech segments")
@@ -163,4 +159,3 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
-
