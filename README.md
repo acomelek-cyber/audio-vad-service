@@ -28,3 +28,4 @@ curl -X POST http://your-app.railway.app/extract-speech \
   -o cleaned.wav
 ```# audio-vad-service
 # audio-vad-service
+# audio-vad-service
