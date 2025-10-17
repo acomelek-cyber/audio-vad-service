@@ -132,13 +132,18 @@ async def extract_speech(audio: UploadFile = File(...)):
         logger.info(f"Silence removed: {reduction_percent:.1f}%")
         logger.info(f"Speech segments: {len(speech_timestamps)}")
         
-        # Export as WAV using pydub
+        # Export as WAV using pydub with proper settings
         logger.info("Exporting cleaned audio as WAV...")
         
         # Convert torch tensor back to numpy
         speech_np = speech_only.squeeze(0).numpy()
         
-        # Scale back to int16 range
+        # Ensure proper normalization
+        max_val = np.abs(speech_np).max()
+        if max_val > 0:
+            speech_np = speech_np / max_val  # Normalize to [-1, 1]
+        
+        # Scale to int16 range
         speech_int16 = (speech_np * 32767).astype(np.int16)
         
         # Create AudioSegment from numpy array
@@ -149,10 +154,17 @@ async def extract_speech(audio: UploadFile = File(...)):
             channels=1
         )
         
-        # Export to WAV
+        # Export to WAV with explicit codec
         output = io.BytesIO()
-        output_audio.export(output, format="wav")
+        output_audio.export(
+            output, 
+            format="wav",
+            codec="pcm_s16le",  # Explicit codec
+            parameters=["-ar", str(sample_rate)]  # Explicit sample rate
+        )
         output.seek(0)
+        
+        logger.info(f"WAV export complete - sample rate: {sample_rate}, format: pcm_s16le")
         
         output_size = len(output.getvalue())
         logger.info(f"Output file size: {output_size} bytes ({output_size/1024/1024:.2f} MB)")
