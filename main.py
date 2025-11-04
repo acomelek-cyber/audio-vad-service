@@ -90,11 +90,11 @@ async def extract_speech(audio: UploadFile = File(...)):
             waveform[0],
             model,
             sampling_rate=sample_rate,
-            threshold=0.4,
-            min_speech_duration_ms=250,
+            threshold=0.25,
+            min_speech_duration_ms=200,
             min_silence_duration_ms=700,
             window_size_samples=512,
-            speech_pad_ms=50
+            speech_pad_ms=150
         )
         
         logger.info(f"Detected {len(speech_timestamps)} speech segments")
